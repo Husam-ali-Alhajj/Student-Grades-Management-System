@@ -1,13 +1,12 @@
 # permissions.py
 
 class PermissionManager:
-    """Manages role-based access control"""
     
     PERMISSIONS = {
         'Admin': [
-            'create_student', 'update_student', 'delete_student',
+            'create_student', 'update_student_major', 'delete_student',
             'create_course', 'update_course', 'delete_course',
-            'create_teacher', 'update_teacher', 'delete_teacher',
+            'create_teacher', 'update_teacher_department', 'delete_teacher',
             'create_admin', 'delete_admin',
             'view_all_students', 'view_all_courses', 'view_all_users',
             'record_grades', 'update_grades', 'delete_grades',
@@ -32,14 +31,12 @@ class PermissionManager:
     
     @staticmethod
     def check_permission(user, action):
-        """Check if user has permission for action"""
         if user.role not in PermissionManager.PERMISSIONS:
             return False
         return action in PermissionManager.PERMISSIONS[user.role]
     
     @staticmethod
     def require_permission(action):
-        """Decorator to enforce permissions"""
         def decorator(func):
             def wrapper(self, user, *args, **kwargs):
                 if not PermissionManager.check_permission(user, action):

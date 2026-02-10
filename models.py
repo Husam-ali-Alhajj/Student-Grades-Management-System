@@ -2,17 +2,17 @@ import datetime
 
 
 class User:
-    def __init__(self, user_id, username, email, name, password, active=True):
+    def __init__(self, user_id, username, email, name, password, role, is_active=True):
         self.user_id = user_id
         self.username = username
         self.email = email
         self.name = name
-        self.role = None
+        self.role = role
         self.password = password
-        self.active = active
+        self.is_active = is_active
 
     def is_active(self):
-        return self.active
+        return self.is_active
 
     def has_permission(self, action):
         raise NotImplementedError
@@ -20,10 +20,10 @@ class User:
     
 class Student(User):
     def __init__(self,student_id, user_id, username, email, name, password,
-                 major,enrollment_year = None, gpa = 0.00, total_credits = 0, academic = "Good", active = True):
-        super().__init__(user_id, username, email, name, password, active)
+                 major,enrollment_year = None, gpa = 0.00, total_credits = 0, academic = "Good", is_active = True):
+        super().__init__(user_id, username, email, name, password, is_active)
         self.student_id = student_id
-        self.role = "student"
+        self.role = "Student"
         self.major = major
         self.enrollments = []
         self.enrollment_year = enrollment_year
@@ -45,9 +45,9 @@ class Student(User):
         return f"Student #{self.student_id} ({self.major})"
     
 class Teacher(User):
-    def __init__(self, teacher_id, user_id, username, email, name, password, department, office, phone, active = True):
-        super().__init__(user_id, username, email, name, password, active)
-        self.role = "teacher"
+    def __init__(self, teacher_id, user_id, username, email, name, password, department, office, phone, is_active = True):
+        super().__init__(user_id, username, email, name, password, is_active)
+        self.role = "Teacher"
         self.teacher_id = teacher_id
         self.department = department
         self.office = office
@@ -79,21 +79,18 @@ class Course:
         return f"Course #{self.course_id} ({self.department})"
     
 class Enrollment:
-    def __init__(self, course, enrollment_id, student, semester, grade_percentage, status = "Active", grade_points = 0.00):
+    def __init__(self, enrollment_id, grade_letter, grade_percentage, grade_points, status = "Active",):
         self.enrollment_id = enrollment_id
-        self.course = course
-        self.student = student
-        self.semester = semester
-        self.grade_letter = None
         self.status = status
+        self.grade_letter = grade_letter
         self.grade_percentage = grade_percentage
         self.grade_points = grade_points
 
-    
+        
 class Attendance:
-    def __init__(self, course, student, attendance_id, attendance_date, status = "Present"):
+    def __init__(self, course_id, student_id, attendance_id, attendance_date, status = "Present"):
         self.attendance_id = attendance_id
-        self.course = course
-        self.student = student
+        self.course_id = course_id
+        self.student_id = student_id
         self.attendance_date =attendance_date
         self.status= status

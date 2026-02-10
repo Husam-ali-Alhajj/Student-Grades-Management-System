@@ -1,15 +1,16 @@
-from models import User, Student, Course, Enrollment
+from models import User, Student, Teacher, Course, Enrollment, Attendance
 from database import Database
+from datetime import datetime
 
 
 class UserManager:
-    def create_user(self, user_id, username, email, name, password, role, active=True):
+    def create_user(self, username, email, name, password, role, is_active=True):
         try:
             cursor = Database.get_cursor()
             cursor.execute(
-                "INSERT INTO users (user_id, username, email, name, password, role, active) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                (user_id, username, email, name, password, role, active)
+                "INSERT INTO users (username, email, name, password_hash, role, is_active) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (username, email, name, password, role, is_active)
             )
 
             Database.commit()
@@ -22,7 +23,7 @@ class UserManager:
     def get_user_by_username(self, username):
         cursor = Database.get_cursor()
         cursor.execute(
-            "SELECT user_id, username, email, name, role, active "
+            "SELECT user_id, username, email, name, role, is_active "
             "FROM users WHERE username = %s",
             (username,) 
         )
@@ -38,14 +39,36 @@ class UserManager:
             email=row["email"],
             name=row["name"],
             password=None,
-            active=row["active"]
+            is_active=row["is_active"]
         )
+    
+    def get_all_users(self):
+        cursor = Database.get_cursor()
+        cursor.execute(
+            "SELECT user_id, username, email, name, role, is_active "
+            "FROM users"
+        )
+        rows = cursor.fetchall()
+
+        users = []
+        for row in rows:
+            users.append(
+                User(
+                    user_id=row["user_id"],
+                    username=row["username"],
+                    email=row["email"],
+                    name=row["name"],
+                    password=None,
+                    is_active=row["is_active"]
+                ))
+        cursor.close()
+        return users
 
 
     def get_user_by_id(self, user_id):
         cursor = Database.get_cursor()
         cursor.execute(
-            "SELECT user_id, username, email, name, role, active "
+            "SELECT user_id, username, email, name, role, is_active "
             "FROM users WHERE user_id = %s",
             (user_id,) 
         )
@@ -61,24 +84,24 @@ class UserManager:
             email=row["email"],
             name=row["name"],
             password=None,
-            active=row["active"]
+            is_active=row["is_active"]
         )
 
 
     def deactivate_user(self, user_id):
         cursor = Database.get_cursor()
         cursor.execute(
-            "UPDATE users SET active = FALSE WHERE user_id = %s",
+            "UPDATE users SET is_active = FALSE WHERE user_id = %s",
             (user_id,)
         )
         Database.commit()
         cursor.close()
 
-    def verify_login(self, user_id):
+    def verify_login(self, username, password):
         cursor = Database.get_cursor()
-        cursor.execute("SELECT user_id, username, email, name, role, active " \
-        "FROM users WHERE user_id = %s",
-        (user_id,))
+        cursor.execute("SELECT user_id, username, password_hash, email, name, role, is_active " \
+        "FROM users WHERE username = %s AND password_hash = %s",
+        (username, password))
         row = cursor.fetchone()
         cursor.close()
         if not row:
@@ -91,22 +114,34 @@ class UserManager:
             name = row['name'],
             password = None,
             role = row['role'],
-            avtive = row['active']
+            is_active = row['is_active']
         )
+    
+    def change_password(self, username, new_password):
+        cursor = Database.get_cursor()
+        cursor.execute(
+            "UPDATE users SET password_hash = %s WHERE username = %s", (new_password, username)
+        )
+        Database.commit()
+        cursor.close()
         
 
 class StudentManager:
-    def create_student(self, student_id, user_id, major, enrollment_year,
+    def create_student(self, user_id, major, enrollment_year,
                        gpa=0.00, total_credits=0,
-                       academic="Good", active=True):
+                       academic="Good"):
         try:
             cursor = Database.get_cursor()
             cursor.execute(
                 "INSERT INTO students "
-                "(student_id, user_id, major, enrollment_year, current_gpa, total_credits, academic_standing, active) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (student_id, user_id, major, enrollment_year, gpa, total_credits, academic, active)
-            ) 
+                "(user_id, major, enrollment_year, current_gpa, total_credits, academic_standing) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (user_id, major, enrollment_year, gpa, total_credits, academic)
+            )
+            cursor.execute(
+                "UPDATE users SET role = 'Student' WHERE user_id = %s",
+                (user_id,)
+            )
 
             Database.commit()
             cursor.close()
@@ -119,7 +154,7 @@ class StudentManager:
         cursor = Database.get_cursor()
         cursor.execute(
             "SELECT s.student_id, u.name, u.email, s.major, s.enrollment_year,"
-            "s.current_gpa, s.total_credits, s.academic_standing, s.active "
+            "s.current_gpa, s.total_credits, s.academic_standing, u.is_active "
             "FROM students s "
             "JOIN users u ON s.user_id = u.user_id "
             "WHERE s.student_id = %s",
@@ -143,7 +178,7 @@ class StudentManager:
             gpa=row["current_gpa"],
             total_credits=row["total_credits"],
             academic=row["academic_standing"],
-            active=row["active"]
+            is_active=row["is_active"]
         )
 
 
@@ -151,7 +186,7 @@ class StudentManager:
         cursor = Database.get_cursor()
         cursor.execute(
             "SELECT s.student_id, u.name, u.email, s.major, s.enrollment_year, "
-            "s.current_gpa, s.total_credits, s.academic_standing, s.active "
+            "s.current_gpa, s.total_credits, s.academic_standing, u.is_active "
             "FROM students s "
             "JOIN users u ON s.user_id = u.user_id"
         )
@@ -173,7 +208,7 @@ class StudentManager:
                     gpa=row["current_gpa"],
                     total_credits=row["total_credits"],
                     academic=row["academic_standing"],
-                    active=row["active"]
+                    is_active=row["is_active"]
                 )
             )
         cursor.close()
@@ -190,23 +225,24 @@ class StudentManager:
         cursor.close()
 
 
-    def delete_student(self, student_id):
+    def delete_student(self, user_id):
         cursor = Database.get_cursor()
         cursor.execute(
-            "DELETE FROM students WHERE student_id = %s",
-            (student_id,)
-        )
+            "DELETE FROM students WHERE user_id = %s",
+            (user_id,))
+        cursor.execute("DELETE FROM users WHERE user_id = %s",
+                       (user_id,))
         Database.commit()
         cursor.close()
 
 class CourseManager:
-    def create_course(self, course_id, course_code, course_name, credits, difficulty, department):
+    def create_course(self, course_code, course_name, department, credits= 0, difficulty="Easy"):
         try:
             cursor = Database.get_cursor()
             cursor.execute("INSERT INTO courses" \
-            "(course_id, course_code, course_name, credits, difficulty, department) " \
-            "VALUES (%s,%s,%s,%s,%s,%s)",
-            (course_id, course_code, course_name, credits, difficulty, department))
+            "(course_code, course_name, department, credits, difficulty) " \
+            "VALUES (%s,%s,%s,%s,%s)",
+            (course_code, course_name, department, credits, difficulty))
             Database.commit()
             cursor.close()
         except Exception as e:
@@ -227,9 +263,9 @@ class CourseManager:
                     course_id = row['course_id'],
                     course_code = row['course_code'],
                     course_name = row['course_name'],
+                     department = row['department'],
                     credits = row['credits'],
-                    difficulty = row['difficulty'],
-                    department = row['department']
+                    difficulty = row['difficulty']
                 )
     
     
@@ -244,11 +280,11 @@ class CourseManager:
             courses.append(
                 Course(
                     course_id = row['course_id'],
-                        course_code = row['course_code'],
-                        course_name = row['course_name'],
-                        credits = row['credits'],
-                        difficulty = row['difficulty'],
-                        department = row['department']
+                    course_code = row['course_code'],
+                    course_name = row['course_name'],
+                    credits = row['credits'],
+                    difficulty = row['difficulty'],
+                    department = row['department']
                 )
             )
         cursor.close()
@@ -264,8 +300,43 @@ class CourseManager:
         Database.commit()
         cursor.close()
 
+class TeacherManager:
+    def create_teacher(self, user_id, department, office_number, phone):
+        try:
+            cursor = Database.get_cursor()
+            cursor.execute("INSERT INTO teachers (user_id, department, office_number, phone) " \
+            "VALUES (%s,%s,%s,%s)", (user_id, department, office_number, phone))
+            cursor.execute(
+                    "UPDATE users SET role = 'Teacher' WHERE user_id = %s",
+                    (user_id,)
+                )
+            Database.commit()
+            cursor.close()
+        except Exception as e:
+            Database.rollback()
+            raise e
+        
+    def update_teacher_department(self, teacher_id, department):
+        cursor = Database.get_cursor()
+        cursor.execute("UPDATE teachers SET department = %s WHERE teacher_id = %s",
+                        (teacher_id,))
+        
+        Database.commit()
+        cursor.close()
+
+    def delete_teacher(self, user_id):
+        cursor = Database.get_cursor()
+        cursor.execute("DELETE FROM teachers WHERE user_id = %s",
+                       (user_id,))
+        cursor.execute("DELETE FROM users WHERE user_id =%s",
+                       (user_id,))
+        
+        Database.commit()
+        cursor.close()
+        
+
 class EnrollmentManager:
-    def enroll_student(self, course_id, student_id, semester, enrolled_at,  status = "Active"):
+    def enroll_student(self, course_id, student_id, semester, enrolled_at,  status = "is_active"):
         try:
             cursor = Database.get_cursor()
             cursor.execute("INSERT INTO enrollments (student_id, course_id, semester, enrolled_at, status) VALUES (%s,%s,%s,%s,%s)",
@@ -308,7 +379,8 @@ class EnrollmentManager:
                 course = Course(
                     course_id = row['course_id'],
                     course_code = row['course_code'],
-                    course_name = row['course_name']
+                    course_name = row['course_name'],
+                    department = "CS"
                 )
                 enrollments.append((enrollment, course))
         
@@ -323,3 +395,38 @@ class EnrollmentManager:
 
         Database.commit()
         cursor.close()
+
+class Attendance:
+    def mark_attendance(self, student_id, course_id, status = "Present"):
+        try:
+            attendance_date = datetime.now()
+            cursor =Database.get_cursor()
+            cursor.execute("INSERT INTO attendance (student_id, course_id, attendance_date, status) " \
+            "VALUES (%s,%s,%s,%s)",
+            (student_id, course_id, attendance_date, status))
+
+            Database.commit()
+            cursor.close()
+        except Exception as e:
+            Database.rollback()
+            raise e
+        
+    def view_all_attendance(self):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT * FROM attendance")
+        rows = cursor.fetchall()
+       
+        attend = []
+        for row in rows:
+            attend.append(
+                Attendance(
+                    course_id = row['course_id'],
+                    student_id = row['student_id'],
+                    attendance_id = row['attendance_id'],
+                    attendance_date = row['attendance_date'],
+                    status = row['status']
+                )
+            )
+        cursor.close()
+        return attend
+
