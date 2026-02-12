@@ -21,14 +21,14 @@ class User:
     
 class Student(User):
     def __init__(self,student_id, user_id, username, email, name, password,
-                 major,enrollment_year = None, gpa = 0.00, total_credits = 0, academic = "Good", is_active = True):
+                 major,enrollment_year = None, current_gpa = 0.00, total_credits = 0, academic = "Good", is_active = True):
         super().__init__(user_id, username, email, name, password, "Student", is_active)
         self.student_id = student_id
         self.role = "Student"
         self.major = major
         self.enrollments = []
         self.enrollment_year = enrollment_year
-        self.gpa = gpa
+        self.current_gp = current_gpa
         self.total_credits = total_credits
         self.academic = academic
 

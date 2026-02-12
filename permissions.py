@@ -12,14 +12,14 @@ class PermissionManager:
             'record_grades', 'update_grades',
             'mark_attendance', 'view_all_attendance',
             'generate_all_reports', 'view_system_stats',
-            'enroll_student', 'drop_student',
+            'enroll_student',
         ],
         
         'Teacher': [
             'view_own_courses', 'view_students_in_own_courses',
             'record_grades_own_courses', 'update_grades_own_courses',
             'mark_attendance_own_courses', 'view_attendance_own_courses',
-            'view_course_reports', 'export_grades'
+            'view_course_reports'
         ],
         
         'Student': [

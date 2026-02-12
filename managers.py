@@ -268,7 +268,98 @@ class StudentManager:
         Database.commit()
         cursor.close()
 
+    def view_profile(self, student_id):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT u.name, u.username, u.email, s.major, current_gpa, total_credits, s.academic_standing " \
+        "FROM students s " \
+        "JOIN users u ON s.user_id = u.user_id " \
+        "WHERE student_id = %s", (student_id,))
+        row = cursor.fetchone()
+        cursor.close()
 
+        if not row:
+            return None
+        
+        return {
+            "name" : row['name'],
+            "username" : row['username'],
+            "email" : row['email'],
+            "major": row['major'],
+            "current_gpa" : row['current_gpa'],
+            "total_credits" : row['total_credits'],
+            "academic_standing" : row['academic_standing']
+        }
+    
+    def view_grades(self, student_id, semester):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT c.course_code, e.grade_letter " \
+        "FROM enrollments e " \
+        "JOIN courses c ON e.course_id = c.course_id " \
+        "WHERE student_id = %s AND semester = %s", (student_id, semester))
+        rows = cursor.fetchall()
+        cursor.close()
+
+        grades = []
+        for row in rows:
+            grades.append({
+                "course_code" : row['course_code'],
+                "grade_letter" : row['grade_letter'],
+            })
+        return grades
+    
+    def gpa_info(self, student_id, semester):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT c.credits, e.grade_points " \
+        "FROM enrollment e " \
+        "JOIN courses c ON e.course_id = c.course_id " \
+        "WHERE student_id = %s AND e.semester = %s", (student_id, semester))
+        rows = cursor.fetchall()
+        cursor.close
+
+        total_points = 0.00
+        total_credits = 0.00
+
+        for row in rows:
+            points = row['grade_points'] 
+            credits = row['credits']
+
+            total_points += (points*credits)
+            total_credits += credits
+
+        return total_points, total_credits
+    
+    def cgpa_info(self, student_id):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT c.credits, e.grade_points " \
+        "FROM enrollments e " \
+        "JOIN courses c ON e.course_id = c.course_id " \
+        "WHERE student_id = %s", (student_id,))
+        rows = cursor.fetchall()
+        cursor.close()
+
+        total_points = 0.0
+        total_credits = 0.0
+
+        for row in rows:
+            points = row['grade_points']
+            credits = row['credits']
+
+            total_points += points * credits
+            total_credits += credits
+
+        return total_points, total_credits
+    
+    def update_gpa(self, student_id, semester, new_gpa, new_standing):
+        cursor = Database.get_cursor()
+        cursor.execute("UPDATE students SET current_gpa = %s, academic_standing = %s WHERE student_id = %s AND semester = %s",
+               (new_gpa, new_standing, student_id, semester))
+        
+        Database.commit()
+        cursor.close()
+    
+    def get_honored(self, semester):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT u.name, s.major, s.current_gpa, ")
     def delete_student(self, user_id):
         cursor = Database.get_cursor()
         cursor.execute(
@@ -367,6 +458,63 @@ class TeacherManager:
         except Exception as e:
             Database.rollback()
             raise e
+    
+    def view_own_courses(self, teacher_id, semester):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT t.course_id, c.course_code, c.course_name, " \
+        "c.credits, c.difficulty, c.department " \
+        "FROM teacher_courses t " \
+        "JOIN courses c ON t.course_id = c.course_id " \
+        "WHERE t.teacher_id = %s AND t.semester = %s ", (teacher_id, semester))
+        rows = cursor.fetchall()
+        cursor.close()
+
+        if not rows:
+            return None
+        courses = []
+        for row in rows:
+            courses.append(
+                Course(
+                    course_id = row['course_id'],
+                    course_code = row['course_code'],
+                    course_name = row['course_name'],
+                    credits = row['credits'],
+                    difficulty = row['difficulty'],
+                    department = row['department']
+                )
+            )
+        return courses
+
+    def view_own_students(self, teacher_id, semester):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT u.name, s.major, s.current_gpa " \
+        "FROM users u " \
+        "JOIN students s ON u.user_id = s.user_id " \
+        "JOIN enrollments e ON s.student_id = e.student_id " \
+        "JOIN teacher_courses t ON e.course_id = t.course_id " \
+        "WHERE t.teacher_id = %s AND t.semester = %s", (teacher_id, semester))
+        rows = cursor.fetchall()
+        
+        students = []
+        
+        for row in rows:
+            students.append({
+                "name" : row['name'],
+                "major" :row['major'],
+                "current_gpa" : row['current_gpa']}
+            )
+
+        cursor.close()
+        return students
+    
+    def check_course(self, teacher_id, course_id, semester):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT 1 FROM teacher_courses WHERE teacher_id = %s AND course_id = %s AND semester = %s", (teacher_id, course_id, semester))
+        exists = cursor.fetchone()
+        cursor.close()
+
+        return exists is not None
+    
         
     def update_teacher_department(self, teacher_id, department):
         cursor = Database.get_cursor()
@@ -375,6 +523,26 @@ class TeacherManager:
         
         Database.commit()
         cursor.close()
+
+    def view_own_attendance(self, teacher_id):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT a.course_id, a.student_id, a.attendance_id, a.attendance_date, a.status FROM attendance a " \
+        "JOIN teacher_courses t ON a.course_id = t.course_id WHERE teacher_id = %s", (teacher_id,))
+        rows = cursor.fetchall()
+       
+        attend = []
+        for row in rows:
+            attend.append(
+                Attendance(
+                    course_id = row['course_id'],
+                    student_id = row['student_id'],
+                    attendance_id = row['attendance_id'],
+                    attendance_date = row['attendance_date'],
+                    status = row['status']
+                )
+            )
+        cursor.close()
+        return attend
 
     def delete_teacher(self, user_id):
         cursor = Database.get_cursor()
