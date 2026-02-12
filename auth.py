@@ -6,8 +6,8 @@ class AuthManager:
         self.sessions = {}
         self.user_manager = UserManager()
 
-    def login(self, username, password):
-        user = self.user_manager.verify_login(username, password)
+    def login(self, user_id, password):
+        user = self.user_manager.verify_login(user_id, password)
         if user is None:
             return None
         
@@ -32,3 +32,23 @@ class AuthManager:
         
         self.user_manager.change_password(user.username, new_password)
         return True
+    
+    def first_login(self, session_id, username, name, email, password):
+        user = self.sessions.get(session_id)
+        if not user:
+            return False
+        
+        self.user_manager.complete_profile(
+            user.user_id,
+            username,
+            name, 
+            email,
+            password
+        )
+
+        update_user = self.user_manager.verify_login(user.user_id, password)
+        self.sessions[session_id] = update_user
+
+        return True
+        
+    

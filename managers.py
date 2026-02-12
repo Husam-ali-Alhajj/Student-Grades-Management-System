@@ -1,24 +1,41 @@
 from models import User, Student, Teacher, Course, Enrollment, Attendance
 from database import Database
 from datetime import datetime
+import bcrypt
 
 
 class UserManager:
-    def create_user(self, username, email, name, password, role, is_active=True):
+    def create_user(self, email, name, password, role, is_active=True, is_complete = False):
+        hashed = bcrypt.hashpw(password.encode(),bcrypt.gensalt()).decode()
         try:
             cursor = Database.get_cursor()
             cursor.execute(
-                "INSERT INTO users (username, email, name, password_hash, role, is_active) "
+                "INSERT INTO users (email, name, password_hash, role, is_active, is_complete) "
                 "VALUES (%s,%s,%s,%s,%s,%s)",
-                (username, email, name, password, role, is_active)
+                ( email, name, hashed, role, is_active, is_complete)
             )
 
             Database.commit()
             cursor.close()
         except Exception as e:
             Database.rollback()
-            raise e  
+            raise e
+    
+    def create_admin(self, email, name, password, role= "Admin"):
+        self.create_user(email, name, password, role)
 
+    def delete_admin(self, user_id):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT COUNT(*) AS total FROM users WHERE role = 'Admin'")
+        row = cursor.fetchone()
+
+        if row['total'] > 1:
+            cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        else:
+            return "You're the last admin"
+        
+        Database.commit()
+        cursor.close()
 
     def get_user_by_username(self, username):
         cursor = Database.get_cursor()
@@ -39,6 +56,7 @@ class UserManager:
             email=row["email"],
             name=row["name"],
             password=None,
+            role=row['role'],
             is_active=row["is_active"]
         )
     
@@ -59,6 +77,7 @@ class UserManager:
                     email=row["email"],
                     name=row["name"],
                     password=None,
+                    role=row['role'],
                     is_active=row["is_active"]
                 ))
         cursor.close()
@@ -84,6 +103,7 @@ class UserManager:
             email=row["email"],
             name=row["name"],
             password=None,
+            role=row['role'],
             is_active=row["is_active"]
         )
 
@@ -97,33 +117,57 @@ class UserManager:
         Database.commit()
         cursor.close()
 
-    def verify_login(self, username, password):
+    def verify_login(self, user_id, password):
         cursor = Database.get_cursor()
-        cursor.execute("SELECT user_id, username, password_hash, email, name, role, is_active " \
-        "FROM users WHERE username = %s AND password_hash = %s",
-        (username, password))
+        cursor.execute(
+            "SELECT user_id, username, password_hash, email, name, role, is_active, is_complete "
+            "FROM users WHERE user_id = %s",
+            (user_id,)
+        )
         row = cursor.fetchone()
         cursor.close()
+
         if not row:
             return None
         
+        if not row['is_active']:
+            return None
+
+        if not bcrypt.checkpw(password.encode(), row['password_hash'].encode()):
+            return None
+
         return User(
-            user_id = row['user_id'],
-            username = row['username'],
-            email = row['email'],
-            name = row['name'],
-            password = None,
-            role = row['role'],
-            is_active = row['is_active']
+            user_id=row['user_id'],
+            username=row['username'],
+            email=row['email'],
+            name=row['name'],
+            password=None,
+            role=row['role'],
+            is_active=row['is_active'],
+            is_complete = row['is_complete']
         )
     
+    def complete_profile(self, user_id, username, name, email, password_hash):
+        hashed = bcrypt.hashpw(password_hash.encode(), bcrypt.gensalt()).decode()
+
+        cursor = Database.get_cursor()
+        cursor.execute("UPDATE users " \
+        "SET username = %s, name = %s, email = %s, password_hash = %s, is_complete = True " \
+        "WHERE user_id = %s", (username, name, email, hashed, user_id))
+        Database.commit()
+        cursor.close()
+    
     def change_password(self, username, new_password):
+        hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+
         cursor = Database.get_cursor()
         cursor.execute(
-            "UPDATE users SET password_hash = %s WHERE username = %s", (new_password, username)
+            "UPDATE users SET password_hash = %s WHERE username = %s",
+            (hashed, username)
         )
         Database.commit()
         cursor.close()
+
         
 
 class StudentManager:
@@ -249,6 +293,14 @@ class CourseManager:
             Database.rollback()
             raise e
         
+    def update_difficulty(self, course_id, new_difficulty):
+        cursor = Database.get_cursor()
+        cursor.execute("UPDATE courses SET difficulty = %s WHERE course_id = %s", (new_difficulty, course_id))
+
+        Database.commit()
+        cursor.close()
+
+
     def get_course_by_id(self, course_id):
         cursor = Database.get_cursor()
         cursor.execute("SELECT course_id, course_code, course_name, credits, difficulty, department " \
@@ -319,7 +371,7 @@ class TeacherManager:
     def update_teacher_department(self, teacher_id, department):
         cursor = Database.get_cursor()
         cursor.execute("UPDATE teachers SET department = %s WHERE teacher_id = %s",
-                        (teacher_id,))
+                        (department,teacher_id))
         
         Database.commit()
         cursor.close()
@@ -336,18 +388,52 @@ class TeacherManager:
         
 
 class EnrollmentManager:
-    def enroll_student(self, course_id, student_id, semester, enrolled_at,  status = "is_active"):
+    def enroll_student(self, course_id, student_id, semester, enrolled_at,  status = "Active"):
         try:
             cursor = Database.get_cursor()
-            cursor.execute("INSERT INTO enrollments (student_id, course_id, semester, enrolled_at, status) VALUES (%s,%s,%s,%s,%s)",
-                            (student_id, course_id, semester, enrolled_at, status))
+            cursor.execute("SELECT SUM(c.credits) as credits_now FROM courses c " \
+            "JOIN enrollments e using (course_id) " \
+            "WHERE e.student_id = %s AND e.semester = %s AND e.status = 'Active'",(student_id, semester))
+            row = cursor.fetchone()
+            current_credits = row['credits_now'] or 0 
 
+            cursor.execute("SELECT credits FROM courses WHERE course_id = %s", (course_id,))
+            row1 = cursor.fetchone()
+            new_course = row1['credits']
+
+            if current_credits + new_course <= 24:
+                cursor.execute("SELECT EXISTS (SELECT 1 FROM enrollments " \
+                "WHERE student_id = %s AND course_id = %s AND (status = 'Active' OR grade_letter = 'A')) AS ans",
+                (student_id, course_id,semester))
+                ans = cursor.fetchone()
+                if ans['ans'] == 0:
+                    cursor.execute("INSERT INTO enrollments (student_id, course_id, semester, enrolled_at, status) VALUES (%s,%s,%s,%s,%s)",
+                                    (student_id, course_id, semester, enrolled_at, status))
+                else:
+                    return "Course is taken before"
+            else:
+                return "Credits for this semester already full"
+            
             Database.commit()
             cursor.close()
         except Exception as e:
             Database.rollback()
             raise e
         
+    
+    def drop_course(self, student_id, course_id):
+        cursor = Database.get_cursor()
+        cursor.execute("SELECT EXISTS(SELECT 1 FROM enrollments WHERE student_id = %s AND course_id = %s AND status in ('Completed','Dropped')) AS ans", (student_id, course_id))
+        row = cursor.fetchone()
+
+        if row['ans'] == 0:
+            cursor.execute("UPDATE enrollments SET status = 'Dropped' WHERE student_id = %s And course_id = %s", (student_id, course_id)
+                           )
+        else :
+            return "Cannot drop this course"
+        Database.commit()
+        cursor.close()
+    
     def get_student_enrollments(self, student_id, semester = None):
         cursor = Database.get_cursor()
         
@@ -395,6 +481,16 @@ class EnrollmentManager:
 
         Database.commit()
         cursor.close()
+
+    def update_grade(self, student_id, course_id, grade_letter, grade_percentage, grade_points):
+        cursor= Database.get_cursor()
+        cursor.execute("UPDATE enrollments SET grade_letter = %s, grade_percentage = %s, grade_points = %s " \
+        "WHERE student_id = %s AND course_id = %s", 
+        (grade_letter, grade_percentage, grade_points, student_id, course_id))
+
+        Database.commit()
+        cursor.close()
+
 
 class Attendance:
     def mark_attendance(self, student_id, course_id, status = "Present"):

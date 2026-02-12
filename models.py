@@ -2,7 +2,7 @@ import datetime
 
 
 class User:
-    def __init__(self, user_id, username, email, name, password, role, is_active=True):
+    def __init__(self, user_id, username, email, name, password, role, is_active=True, is_complete = False):
         self.user_id = user_id
         self.username = username
         self.email = email
@@ -10,6 +10,7 @@ class User:
         self.role = role
         self.password = password
         self.is_active = is_active
+        self.is_complete = is_complete
 
     def is_active(self):
         return self.is_active
@@ -21,7 +22,7 @@ class User:
 class Student(User):
     def __init__(self,student_id, user_id, username, email, name, password,
                  major,enrollment_year = None, gpa = 0.00, total_credits = 0, academic = "Good", is_active = True):
-        super().__init__(user_id, username, email, name, password, is_active)
+        super().__init__(user_id, username, email, name, password, "Student", is_active)
         self.student_id = student_id
         self.role = "Student"
         self.major = major
@@ -46,7 +47,7 @@ class Student(User):
     
 class Teacher(User):
     def __init__(self, teacher_id, user_id, username, email, name, password, department, office, phone, is_active = True):
-        super().__init__(user_id, username, email, name, password, is_active)
+        super().__init__(user_id, username, email, name, password, "Teacher", is_active)
         self.role = "Teacher"
         self.teacher_id = teacher_id
         self.department = department

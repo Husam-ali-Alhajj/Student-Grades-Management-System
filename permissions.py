@@ -9,10 +9,10 @@ class PermissionManager:
             'create_teacher', 'update_teacher_department', 'delete_teacher',
             'create_admin', 'delete_admin',
             'view_all_students', 'view_all_courses', 'view_all_users',
-            'record_grades', 'update_grades', 'delete_grades',
+            'record_grades', 'update_grades',
             'mark_attendance', 'view_all_attendance',
             'generate_all_reports', 'view_system_stats',
-            'enroll_student', 'drop_student', 'bulk_operations'
+            'enroll_student', 'drop_student',
         ],
         
         'Teacher': [
